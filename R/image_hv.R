@@ -20,79 +20,98 @@
 #' image_hv("Prepusa montana")
 #'
 #' @export
+#' 
+#' 
+#' 
+
+require('dplyr')
+require('httr')
+require('xml2')
+require('rvest')
+require('textclean')
+
+setwd('C:\\Users\\antun\\Marcos\\Mestrado\\sp-identification\\jb_images');
+getwd()
 image_hv = function(scientific.name,
                     tx = 1,
                     destfolder = "images",
                     municipality = NULL) {
-  url = "http://reflora.jbrj.gov.br/reflora/herbarioVirtual/ConsultaPublicoHVUC/BemVindoConsultaPublicaHVConsultar.do?modoConsulta=LISTAGEM&quantidadeResultado=1000"
   
-  if (!is.null(scientific.name)) {
-    name = scientific.name %>% 
-      strsplit(., " ") %>% 
-      unlist(.)
-    gen = name[1]
-    epi = name[2]
-    url_sp = paste0(url, "&nomeCientifico=", paste0(gen, "+", epi))
-    if(!is.null(municipality)){
-      mun  = municipality %>% 
-        replace_non_ascii(.) %>% 
+  count = 1;
+  for(page in 32:218){
+    url = "http://reflora.jbrj.gov.br/reflora/herbarioVirtual/ConsultaPublicoHVUC/BemVindoConsultaPublicaHVConsultar.do?modoConsulta=LISTAGEM&d-16544-t=testemunhos&quantidadeResultado=20"
+    url_page = paste0(url, "&d-16544-p=", page)
+    
+    if (!is.null(scientific.name)) {
+      name = scientific.name %>% 
         strsplit(., " ") %>% 
-        unlist(.) %>% 
-        paste(., collapse = "+")
-      url_sp = paste0(url, "&nomeCientifico=", paste0(gen, "+", epi), "&municipio=", mun)
+        unlist(.)
+      gen = name[1]
+      epi = name[2]
+      url_sp = paste0(url_page, "&nomeCientifico=", paste0(gen, "+", epi))
+      if(!is.null(municipality)){
+        mun  = municipality %>% 
+          replace_non_ascii(.) %>% 
+          strsplit(., " ") %>% 
+          unlist(.) %>% 
+          paste(., collapse = "+")
+        url_sp = paste0(url, "&nomeCientifico=", paste0(gen, "+", epi), "&municipio=", mun)
+      }
+    } else{
+      stop("Please provide search name")
     }
-  } else{
-    stop("Please provide search name")
-  }
-  
-  cdg_html <- url_sp %>%
-    httr::GET(.) %>%
-    httr::content(.,'text', encoding = 'UTF-8') %>%
-    xml2::read_html(.) %>%
-    html_nodes(.,'img') %>%
-    html_attr(.,'src')
-  
-  if(length(cdg_html)==86){stop("Please check if the taxon name is correct.")}
     
-  cdg_html = grep(pattern = "width=", cdg_html, value = T)
-  
-  if (!dir.exists(destfolder)) {
-    dir.create(destfolder)
-  } else{
-    warning(
-      "The folder you have chosen already exists. Be careful because you can overwrite the files contained in it."
-    )
-  }
-  
-  pb <- txtProgressBar(min = 1,
-                       max = length(cdg_html),
-                       style = 3)
-  for (i in 1:length(cdg_html)) {
-    setTxtProgressBar(pb, i)
-    #nomes = unlist(strsplit(cdg_html[i], split = "&"))
-    nomes = cdg_html[i] %>% 
-      strsplit(., split = "&") %>% 
-      unlist(.)
+    cat(url_sp)
+    cdg_html <- url_sp %>%
+      httr::GET(.) %>%
+      httr::content(.,'text', encoding = 'UTF-8') %>%
+      xml2::read_html(.) %>%
+      html_nodes(.,'img') %>%
+      html_attr(.,'src')
     
-    w = as.numeric(nomes[3:4] %>% strsplit(., split="=") %>% unlist(.) %>% .[2])
-    h = as.numeric(nomes[3:4] %>% strsplit(., split="=") %>% unlist(.) %>% .[4])
+    if(length(cdg_html)==86){stop("Please check if the taxon name is correct.")}
     
-    url1 = paste0(nomes[1:2], collapse = "&")
-    url_image = paste(url1, "&", "width=", w * tx, "&", "height=", h * tx, sep = "")
-    download.file(
-      url = url_image,
-      destfile = paste(
-        "./",
-        destfolder,
-        "/",
-        scientific.name,
-        "_",
-        i,
-        ".jpg",
-        sep = ""
-      ),
-      mode = "wb",
-      quiet = TRUE
-    )
+    cdg_html = grep(pattern = "width=", cdg_html, value = T)
+    
+    if (!dir.exists(destfolder)) {
+      dir.create(destfolder)
+    } else{
+      warning(
+        "The folder you have chosen already exists. Be careful because you can overwrite the files contained in it."
+      )
+    }
+    
+    pb <- txtProgressBar(min = 1,
+                         max = length(cdg_html),
+                         style = 3)
+    for (i in 1:length(cdg_html)) {
+      setTxtProgressBar(pb, i)
+      #nomes = unlist(strsplit(cdg_html[i], split = "&"))
+      nomes = cdg_html[i] %>% 
+        strsplit(., split = "&") %>% 
+        unlist(.)
+      
+      w = as.numeric(nomes[3:4] %>% strsplit(., split="=") %>% unlist(.) %>% .[2])
+      h = as.numeric(nomes[3:4] %>% strsplit(., split="=") %>% unlist(.) %>% .[4])
+      
+      url1 = paste0(nomes[1:2], collapse = "&")
+      url_image = paste(url1, "&", "width=", w * tx, "&", "height=", h * tx, sep = "")
+      download.file(
+        url = url_image,
+        destfile = paste(
+          "./",
+          destfolder,
+          "/",
+          scientific.name,
+          "_",
+          (page*20) - 20 + i,
+          ".jpg",
+          sep = ""
+        ),
+        mode = "wb",
+        quiet = TRUE
+      )
+      count = count + 1;
+    } 
   }
 }
